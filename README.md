@@ -262,11 +262,7 @@ To prevent indefinite lockout:
 
 ## Bonus Features Implemented
 
-1. **Real-Time Updates**
-   - WebSocket integration for instant status updates
-   - No page refresh needed when mentor assigns intervention
-
-2. **Focus Mode**
+1. **Focus Mode**
    - Tab visibility detection
    - Automatic session failure on tab switch/minimize
    - Penalty system for violations
