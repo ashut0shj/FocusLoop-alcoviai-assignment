@@ -28,6 +28,24 @@ A full-stack system that implements a closed-loop intervention workflow for stud
 - JWT for authentication
 - WebSocket server for real-time communication
 
+## Application Screenshots
+
+### 1. Normal State
+![Normal State](./images/normal.png)
+*Student dashboard in normal state with focus timer and daily check-in form*
+
+### 2. Locked State
+![Locked State](./images/locked.png)
+*Student view when account is locked, showing pending mentor review status*
+
+### 3. Remedial State
+![Remedial State](./images/remedial.png)
+*Student view with assigned intervention task and completion options*
+
+### 4. n8n Workflow
+![n8n Workflow](./images/n8n.png)
+*Automated workflow for handling student interventions and mentor notifications*
+
 ### System Architecture
 
 ### 1. Frontend Components
