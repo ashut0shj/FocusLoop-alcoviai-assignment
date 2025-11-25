@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import useStudent from '../hooks/useStudent';
+import { logPenalty } from '../utils/api';
 
 const FocusTimer = () => {
   const {
@@ -8,9 +9,47 @@ const FocusTimer = () => {
     focusMinutes,
     setFocusMinutes,
     state,
+    studentId,
   } = useStudent();
 
   const [seconds, setSeconds] = useState(0);
+  const [penalties, setPenalties] = useState(0);
+  const [lastPenaltyTime, setLastPenaltyTime] = useState(null);
+
+  const handleVisibilityChange = useCallback(() => {
+    if (document.visibilityState === 'hidden' && isTimerRunning) {
+      const now = Date.now();
+      // Prevent multiple penalties in quick succession
+      if (!lastPenaltyTime || (now - lastPenaltyTime) > 5000) {
+        setPenalties(prev => {
+          const newPenalties = prev + 1;
+          // Log penalty to the server
+          if (studentId) {
+            logPenalty({ 
+              studentId, 
+              reason: 'tab_switch',
+              details: { focusMinutes, penalties: newPenalties }
+            }).catch(console.error);
+          }
+          return newPenalties;
+        });
+        setLastPenaltyTime(now);
+        
+        // Reset timer on penalty
+        setIsTimerRunning(false);
+        setSeconds(0);
+        setFocusMinutes(0);
+      }
+    }
+  }, [isTimerRunning, focusMinutes, studentId, lastPenaltyTime, setFocusMinutes, setIsTimerRunning]);
+
+  useEffect(() => {
+    // Add event listener for visibility changes
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [handleVisibilityChange]);
 
   useEffect(() => {
     if (!isTimerRunning) {
@@ -59,7 +98,14 @@ const FocusTimer = () => {
   };
 
   return (
-    <div className="card mb-6">
+    <div className="bg-white p-6 rounded-lg shadow-md">
+      {penalties > 0 && (
+        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4" role="alert">
+          <p className="font-bold">Penalty Applied</p>
+          <p>Switching tabs or minimizing the window will reset your focus session.</p>
+          <p className="text-sm mt-1">Penalties: {penalties}</p>
+        </div>
+      )}
       <div className="flex flex-col gap-4">
         <div>
           <p className="text-sm uppercase tracking-wide text-gray-500 mb-2">Focus Session</p>

@@ -67,6 +67,16 @@ export function completeTask(payload) {
   });
 }
 
+export function logPenalty(payload) {
+  return request('/penalties', {
+    method: 'POST',
+    body: JSON.stringify({
+      ...payload,
+      timestamp: new Date().toISOString()
+    }),
+  });
+}
+
 export default {
   getHealth,
   getStudents,
@@ -74,5 +84,6 @@ export default {
   getStudent,
   dailyCheckin,
   completeTask,
+  logPenalty,
 };
 
