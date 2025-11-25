@@ -47,144 +47,27 @@ A full-stack system that implements a closed-loop intervention workflow for stud
 
 ### System Architecture
 
-### 1. Frontend Components
-
-```mermaid
-flowchart TB
-    A[App] --> B[Student Dashboard]
-    B --> C[FocusTimer Component]
-    B --> D[DailyCheckinForm]
-    C -->|Uses| E[StudentContext]
-    D -->|Uses| E
-    E -->|Manages| F[Student State]
-    E -->|Connects to| G[WebSocket Client]
-    
-    subgraph React
-        A
-        B
-        C
-        D
-        E
-        F
-    end
-    
-    G -->|Real-time| H[Backend]
-```
-
-### 2. Backend API Flow
+## System Workflow
 
 ```mermaid
 sequenceDiagram
-    participant F as Frontend
-    participant B as Backend API
-    participant DB as Supabase
-    participant SM as State Machine
+    participant Student
+    participant Frontend
+    participant Backend
+    participant Database
+    participant n8n
+    participant Mentor
     
-    F->>B: POST /api/daily-checkin
-    B->>DB: Save check-in data
-    B->>SM: Process state transition
-    SM->>DB: Update student state
-    B-->>F: Return current state
-    
-    alt State is LOCKED
-        B->>N8N: Trigger student-fail webhook
-        N8N-->>Mentor: Send email
-        Mentor-->>N8N: Click approve
-        N8N->>B: Call mentor-approval webhook
-        B->>DB: Update with intervention
-    end
-```
-
-### 3. State Management
-
-```mermaid
-stateDiagram-v2
-    [*] --> Normal
-    state Normal {
-        [*] --> Idle
-        Idle --> Timing: Start focus timer
-        Timing --> Idle: Stop timer
-    }
-    
-    Normal --> Locked: Quiz ≤ 7 OR Focus < 60 min
-    
-    state Locked {
-        [*] --> PendingReview
-        PendingReview --> TaskAssigned: Mentor action
-    }
-    
-    Locked --> Remedial: Mentor assigns task
-    
-    state Remedial {
-        [*] --> TaskActive
-        TaskActive --> TaskComplete: Student submits
-    }
-    
-    Remedial --> Normal: Task completed
-    Locked --> Normal: Next check-in passes
-```
-
-### 4. n8n Automation Flow
-
-```mermaid
-flowchart LR
-    A[Student Fails] -->|Webhook| B[n8n: student-fail]
-    B --> C[Send Email to Mentor]
-    C --> D{Wait for Response}
-    D -->|Mentor Clicks| E[n8n: mentor-approval]
-    E --> F[Call Backend API]
-    F --> G[Update Student Status]
-    
-    subgraph Mentor Email
-        C
-        D
-    end
-```
-
-### 5. Real-time Updates
-
-```mermaid
-graph LR
-    A[State Change] --> B[Backend]
-    B -->|WebSocket| C[Frontend]
-    C --> D[Update UI]
-    
-    subgraph Backend
-        A
-        B
-    end
-    
-    subgraph Frontend
-        C
-        D
-    end
-```
-
-### State Transitions
-
-```mermaid
-stateDiagram-v2
-    [*] --> Normal
-    Normal --> Locked: Quiz ≤ 7 OR Focus < 60 min
-    Locked --> Remedial: Mentor assigns task
-    Remedial --> Normal: Task completed
-    Locked --> Normal: Next check-in passes
-    
-    state Normal {
-        [*] --> Idle
-        Idle --> Timing: Start focus timer
-        Timing --> Idle: Timer stopped
-    }
-    
-    state Locked {
-        [*] --> PendingReview
-        PendingReview --> TaskAssigned: Mentor acts
-    }
-    
-    state Remedial {
-        [*] --> TaskActive
-        TaskActive --> TaskComplete: Student submits
-    }
+    Student->>Frontend: Performs poorly
+    Frontend->>Backend: Send performance data
+    Backend->>Database: Log performance
+    Backend->>n8n: Trigger workflow
+    n8n->>Mentor: Send email notification
+    Mentor-->>n8n: Approve & assign task
+    n8n->>Backend: Update task status
+    Backend->>Database: Update student state
+    Backend->>Frontend: Real-time update
+    Frontend->>Student: Show assigned task
 ```
 
 ### Key Components
