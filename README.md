@@ -30,61 +30,116 @@ A full-stack system that implements a closed-loop intervention workflow for stud
 
 ### System Architecture
 
-### Complete Flow
+### 1. Frontend Components
 
 ```mermaid
-flowchart TD
-    %% Frontend Components
-    A[Student Interface] -->|1. Start Focus Timer| B[FocusTimer Component]
-    B -->|2. Track Time| C[StudentContext]
-    C -->|3. Submit Check-in| D[DailyCheckinForm]
-    D -->|4. Send Data| E[Backend API]
+flowchart TB
+    A[App] --> B[Student Dashboard]
+    B --> C[FocusTimer Component]
+    B --> D[DailyCheckinForm]
+    C -->|Uses| E[StudentContext]
+    D -->|Uses| E
+    E -->|Manages| F[Student State]
+    E -->|Connects to| G[WebSocket Client]
     
-    %% Backend Flow
-    E -->|5. Process Check-in| F[Daily Check-in Endpoint]
-    F -->|6. Save Log| G[Supabase: daily_logs]
-    F -->|7. Check State| H[State Machine]
-    H -->|8. Update State| I[Supabase: students]
-    
-    %% n8n Automation
-    H -->|9. If Locked| J[n8n Webhook: student-fail]
-    J -->|10. Send Email| K[Mentor's Inbox]
-    K -->|11. Click Approve| L[n8n Webhook: mentor-approval]
-    L -->|12. Update Task| M[Assign Intervention]
-    M -->|13. Update State| I
-    
-    %% Real-time Updates
-    I -->|14. State Change| N[WebSocket Server]
-    N -->|15. Push Update| C
-    
-    %% Subgraphs for Clarity
-    subgraph Frontend
+    subgraph React
         A
         B
         C
         D
-    end
-    
-    subgraph Backend[Backend Server]
         E
         F
-        H
-        M
     end
     
-    subgraph Database[Database: Supabase]
-        G
-        I
+    G -->|Real-time| H[Backend]
+```
+
+### 2. Backend API Flow
+
+```mermaid
+sequenceDiagram
+    participant F as Frontend
+    participant B as Backend API
+    participant DB as Supabase
+    participant SM as State Machine
+    
+    F->>B: POST /api/daily-checkin
+    B->>DB: Save check-in data
+    B->>SM: Process state transition
+    SM->>DB: Update student state
+    B-->>F: Return current state
+    
+    alt State is LOCKED
+        B->>N8N: Trigger student-fail webhook
+        N8N-->>Mentor: Send email
+        Mentor-->>N8N: Click approve
+        N8N->>B: Call mentor-approval webhook
+        B->>DB: Update with intervention
+    end
+```
+
+### 3. State Management
+
+```mermaid
+stateDiagram-v2
+    [*] --> Normal
+    state Normal {
+        [*] --> Idle
+        Idle --> Timing: Start focus timer
+        Timing --> Idle: Stop timer
+    }
+    
+    Normal --> Locked: Quiz ≤ 7 OR Focus < 60 min
+    
+    state Locked {
+        [*] --> PendingReview
+        PendingReview --> TaskAssigned: Mentor action
+    }
+    
+    Locked --> Remedial: Mentor assigns task
+    
+    state Remedial {
+        [*] --> TaskActive
+        TaskActive --> TaskComplete: Student submits
+    }
+    
+    Remedial --> Normal: Task completed
+    Locked --> Normal: Next check-in passes
+```
+
+### 4. n8n Automation Flow
+
+```mermaid
+flowchart LR
+    A[Student Fails] -->|Webhook| B[n8n: student-fail]
+    B --> C[Send Email to Mentor]
+    C --> D{Wait for Response}
+    D -->|Mentor Clicks| E[n8n: mentor-approval]
+    E --> F[Call Backend API]
+    F --> G[Update Student Status]
+    
+    subgraph Mentor Email
+        C
+        D
+    end
+```
+
+### 5. Real-time Updates
+
+```mermaid
+graph LR
+    A[State Change] --> B[Backend]
+    B -->|WebSocket| C[Frontend]
+    C --> D[Update UI]
+    
+    subgraph Backend
+        A
+        B
     end
     
-    subgraph Automation[n8n Automation]
-        J
-        K
-        L
-    end
-    
-    subgraph Realtime[Realtime Updates]
-        N
+    subgraph Frontend
+        C
+        D
     end
 ```
 
