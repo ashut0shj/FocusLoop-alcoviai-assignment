@@ -25,8 +25,7 @@ A full-stack system that implements a closed-loop intervention workflow for stud
 ### Backend
 - Node.js with Express
 - Supabase (PostgreSQL) for data persistence
-- JWT for authentication
-- WebSocket server for real-time communication
+- N8N Automation
 
 ### System Architecture
 
