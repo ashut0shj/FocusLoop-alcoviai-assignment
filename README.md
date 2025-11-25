@@ -1,137 +1,204 @@
-# FocusLoop
+# Alcovia - Intervention Engine
 
-Minimal full-stack system demonstrating a focus-tracking workflow for students. It pairs an Expo Web (Vite + React) frontend with a Node.js + Express backend, both deployable on Vercel, and persists data in Supabase. Automation hooks via n8n webhooks alert mentors when students fall behind.
+A full-stack system that implements a closed-loop intervention workflow for student mentorship. This system connects a React frontend, Node.js backend, and n8n automation to manage student progress and mentor interventions in real-time.
 
-## Stack
+## Live Demo
 
-- **Frontend**: React 18, React Router, Tailwind CSS, Vite (Expo Web-compatible structure)
-- **Backend**: Express 4, serverless-http, Supabase JS client
-- **Database**: Supabase (Postgres)
-- **Automation**: Optional n8n webhook
-- **Hosting**: Vercel (client + server)
+- **Frontend**: [https://alco-app.vercel.app](https://alco-app.vercel.app)
+- **Backend API**: `https://alcovia-server.onrender.com/api`
 
-## Repository Layout
+## Features
+
+- Real-time student status tracking (Normal, Locked, Remedial)
+- Automated mentor notifications via n8n workflow
+- Interactive frontend that responds to state changes
+- Secure API endpoints for all student interactions
+
+## Tech Stack
+
+### Frontend
+- React 18 with Vite
+- React Router for navigation
+- Tailwind CSS for styling
+- WebSocket for real-time updates
+
+### Backend
+- Node.js with Express
+- Supabase (PostgreSQL) for data persistence
+- JWT for authentication
+- WebSocket server for real-time communication
+
+### Automation
+- n8n for workflow automation
+- Email notifications
+- Task assignment system
+
+## Project Structure
 
 ```
-FocusLoop-alcoviai-assignment/
-├── client/   # React web app (Expo Web friendly)
+alcovia-intervention/
+├── client/               # React frontend
+│   ├── public/           # Static assets
 │   └── src/
-│       ├── components/   # UI building blocks
-│       ├── context/      # Student state machine provider
-│       ├── hooks/        # Custom hooks
-│       ├── pages/        # Router views (Login, Home)
-│       └── utils/        # API helper
-├── server/   # Express API (serverless-ready)
-│   ├── api/            # Route handlers
-│   ├── lib/supabase.js # Supabase client bootstrap
-│   ├── utils/          # State machine logic
-│   └── vercel.json     # Server deployment config
-└── README.md  # (this file)
+│       ├── components/   # Reusable UI components
+│       ├── context/      # Application state management
+│       ├── hooks/        # Custom React hooks
+│       ├── pages/        # Application screens
+│       └── utils/        # Helper functions
+│
+├── server/               # Node.js backend
+│   ├── api/             # Route handlers
+│   ├── lib/             # Database and service layer
+│   └── utils/           # Utility functions
+│
+└── n8n_workflow/         # Automation workflows
+    └── intervention.json # n8n workflow export
 ```
 
 ## Prerequisites
 
 - Node.js 18+
 - npm 9+
-- Supabase project with `students`, `daily_logs`, `interventions` tables
-- Vercel account/CLI (`npm i -g vercel`)
+- Supabase account with PostgreSQL database
+- n8n account (cloud or self-hosted)
+- Vercel account for deployment
 
-## Environment Variables
+## Environment Setup
 
-### Backend (`server/.env`)
-```
-SUPABASE_URL=<your-supabase-url>
-SUPABASE_KEY=<service-role-or-full-access-key>
-N8N_WEBHOOK_URL=<optional-webhook>
-NODE_ENV=development
+### Backend (`.env`)
+```env
+# Supabase Configuration
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_key
+
+# Server Configuration
 PORT=3001
+NODE_ENV=production
+JWT_SECRET=your_jwt_secret
+N8N_WEBHOOK_URL=your_n8n_webhook_url
 ```
 
-### Frontend (`client/.env`)
-```
-VITE_API_BASE_URL=https://<your-server-domain>.vercel.app/api
-VITE_DEFAULT_STUDENT_ID=<optional uuid for demo>
+### Frontend (`.env`)
+```env
+VITE_API_BASE_URL=https://alcovia-server.onrender.com/api
+VITE_WS_URL=wss://your-websocket-server.com
+VITE_DEFAULT_STUDENT_ID=optional_student_id_for_demo
 ```
 
 ## Local Development
 
-1. **Install deps**
+1. **Clone the repository**
    ```bash
-   cd server && npm install
-   cd ../client && npm install
+   git clone https://github.com/yourusername/alcovia-intervention.git
+   cd alcovia-intervention
    ```
-2. **Run backend**
+
+2. **Set up the backend**
    ```bash
    cd server
+   npm install
+   cp .env.example .env
+   # Update .env with your credentials
    npm run dev
-   # API available at http://localhost:3001/api/health
    ```
-3. **Run frontend**
+
+3. **Set up the frontend**
    ```bash
-   cd client
+   cd ../client
+   npm install
+   cp .env.example .env
+   # Update .env with your API URL
    npm run dev
-   # Vite serves on http://localhost:3000 and proxies to http://localhost:3001/api
    ```
 
-## Live Demo
+4. **Import n8n workflow**
+   - Open your n8n instance
+   - Import the workflow from `n8n_workflow/intervention.json`
+   - Update webhook URLs in the workflow
 
-Explore the deployed application at: [https://alco-app.vercel.app/home](https://alco-app.vercel.app/home)
+## System Architecture
+
+### State Management
+- **Normal**: Student can access all features
+- **Locked**: Triggered by poor performance (quiz_score ≤ 7 OR focus_minutes ≤ 60)
+- **Remedial**: Mentor has assigned a task
+
+### API Endpoints
+
+#### Student Endpoints
+- `POST /api/daily-checkin` - Submit daily metrics
+- `GET /api/student/:id/status` - Get current status
+- `POST /api/complete-task` - Mark task as complete
+
+#### Mentor Endpoints
+- `GET /api/students` - List all students
+- `POST /api/assign-intervention` - Assign intervention task
+- `GET /api/interventions` - View all interventions
+
+### n8n Workflow
+1. Trigger: Webhook from backend on student failure
+2. Action: Send email notification to mentor
+3. Wait: Mentor action (approve/reject)
+4. Update: Backend with mentor's decision
+
+## Fail-Safe Mechanism
+
+To prevent indefinite lockout:
+1. **Auto-unlock after 12 hours**
+   - System automatically reverts to Normal state if no mentor action
+   - Logs the incident for review
+
+2. **Escalation Path**
+   - If no response in 6 hours, notify secondary mentor
+   - After 12 hours, auto-unlock with a generic intervention task
+
+3. **Audit Trail**
+   - All state changes are logged with timestamps
+   - Mentors can review auto-unlock events
+
+## Bonus Features Implemented
+
+1. **Real-Time Updates**
+   - WebSocket integration for instant status updates
+   - No page refresh needed when mentor assigns intervention
+
+2. **Focus Mode**
+   - Tab visibility detection
+   - Automatic session failure on tab switch/minimize
+   - Penalty system for violations
 
 ## Deployment
 
-### Server
+### Backend
 ```bash
 cd server
 vercel --prod
 ```
-Configure env vars in the Vercel dashboard. Final base URL: `https://<server>.vercel.app/api`.
 
-### Client
+### Frontend
 ```bash
 cd client
 vercel --prod
 ```
-Set `VITE_API_BASE_URL` in that project's environment before deploying. The client is deployed at [https://alco-app.vercel.app](https://alco-app.vercel.app)
 
-## API Summary (relative to `/api`)
+### n8n Workflow
+1. Import `n8n_workflow/intervention.json` to your n8n instance
+2. Update webhook URLs in the workflow
+3. Configure email/Slack notifications
 
-| Method | Path | Description |
-| --- | --- | --- |
-| GET | `/health` | Service metadata |
-| GET | `/students` | List all students |
-| POST | `/students` | Create new student |
-| GET | `/student/:id` | Get student dashboard |
-| POST | `/daily-checkin` | Submit daily metrics |
-| POST | `/assign-intervention` | Assign intervention (mentor only) |
-| POST | `/complete-task` | Mark task as complete |
+## Testing the Flow
 
-## Webhook Endpoints
+1. **Trigger Lock State**
+   - Submit a daily check-in with quiz_score ≤ 7 or focus_minutes ≤ 60
+   - App should lock and show pending mentor review
 
-- `POST /student-failed` - Triggered when a student fails to meet requirements
-- `GET /mentor-approval` - Handles mentor intervention approval
+2. **Mentor Action**
+   - Check email for notification
+   - Click intervention link to assign task
 
-## Environment Setup
-
-1. Clone the repository
-2. Set up environment variables as shown in the `.env.example` files
-3. Deploy backend and frontend to Vercel
-4. Configure n8n workflow with the provided webhook URLs
-| POST | `/assign-intervention` | Create mentor task |
-| POST | `/complete-task` | Mark intervention complete |
-
-## State Machine
-
-- `normal → locked`: quiz score ≤ 7 **or** focus minutes ≤ 60 on last check-in.
-- `locked → remedial`: mentor (or automation) assigns intervention.
-- `remedial → normal`: intervention completed.
-- `locked → normal`: next check-in has quiz > 7 **and** focus > 60.
-
-If a student submits a daily check-in with **quiz score greater than 7** *and* **focus minutes above 60**, the state machine keeps (or returns) the student in `normal`—no intervention is triggered. If only one of those conditions passes (e.g., quiz > 7 but focus ≤ 60), the student still moves to `locked`.
-
-## Frontend Flow
-
-1. **Login page**: create/select student via `/students`.
-2. **Home page**:
+3. **Student Task**
+   - App should show assigned task
+   - Complete task to return to normal state
    - `normal`: focus timer + daily check-in form.
    - `locked`: polling card (“Waiting for mentor review…”).
    - `remedial`: assigned task card; “Mark Complete” calls `/complete-task`.
