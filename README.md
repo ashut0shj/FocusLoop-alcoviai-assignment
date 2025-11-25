@@ -73,6 +73,10 @@ VITE_DEFAULT_STUDENT_ID=<optional uuid for demo>
    # Vite serves on http://localhost:3000 and proxies to http://localhost:3001/api
    ```
 
+## Live Demo
+
+Explore the deployed application at: [https://alco-app.vercel.app/home](https://alco-app.vercel.app/home)
+
 ## Deployment
 
 ### Server
@@ -87,17 +91,31 @@ Configure env vars in the Vercel dashboard. Final base URL: `https://<server>.ve
 cd client
 vercel --prod
 ```
-Set `VITE_API_BASE_URL` in that project’s environment before deploying.
+Set `VITE_API_BASE_URL` in that project's environment before deploying. The client is deployed at [https://alco-app.vercel.app](https://alco-app.vercel.app)
 
 ## API Summary (relative to `/api`)
 
 | Method | Path | Description |
 | --- | --- | --- |
 | GET | `/health` | Service metadata |
-| GET | `/students` | List students |
-| POST | `/students` | Create student |
-| GET | `/student/:id` | Dashboard payload |
-| POST | `/daily-checkin` | Submit quiz score + focus minutes |
+| GET | `/students` | List all students |
+| POST | `/students` | Create new student |
+| GET | `/student/:id` | Get student dashboard |
+| POST | `/daily-checkin` | Submit daily metrics |
+| POST | `/assign-intervention` | Assign intervention (mentor only) |
+| POST | `/complete-task` | Mark task as complete |
+
+## Webhook Endpoints
+
+- `POST /student-failed` - Triggered when a student fails to meet requirements
+- `GET /mentor-approval` - Handles mentor intervention approval
+
+## Environment Setup
+
+1. Clone the repository
+2. Set up environment variables as shown in the `.env.example` files
+3. Deploy backend and frontend to Vercel
+4. Configure n8n workflow with the provided webhook URLs
 | POST | `/assign-intervention` | Create mentor task |
 | POST | `/complete-task` | Mark intervention complete |
 
