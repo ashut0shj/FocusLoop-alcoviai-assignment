@@ -28,37 +28,114 @@ A full-stack system that implements a closed-loop intervention workflow for stud
 - JWT for authentication
 - WebSocket server for real-time communication
 
-### Automation
+### System Architecture
 
-### n8n Workflow
+### Complete Flow
 
 ```mermaid
 flowchart TD
-    A[Student Fails Check-in] -->|Triggers| B[Webhook: student-fail]
-    B --> C[Send Email to Mentor]
-    C --> D[Wait for Mentor Action]
-    D -->|Mentor Clicks Link| E[Webhook: mentor-approval]
-    E --> F[Assign Intervention]
-    F --> G[Update Student Status]
-    G --> H[Notify Student]
+    %% Frontend Components
+    A[Student Interface] -->|1. Start Focus Timer| B[FocusTimer Component]
+    B -->|2. Track Time| C[StudentContext]
+    C -->|3. Submit Check-in| D[DailyCheckinForm]
+    D -->|4. Send Data| E[Backend API]
     
-    subgraph n8n Workflow
+    %% Backend Flow
+    E -->|5. Process Check-in| F[Daily Check-in Endpoint]
+    F -->|6. Save Log| G[Supabase: daily_logs]
+    F -->|7. Check State| H[State Machine]
+    H -->|8. Update State| I[Supabase: students]
+    
+    %% n8n Automation
+    H -->|9. If Locked| J[n8n Webhook: student-fail]
+    J -->|10. Send Email| K[Mentor's Inbox]
+    K -->|11. Click Approve| L[n8n Webhook: mentor-approval]
+    L -->|12. Update Task| M[Assign Intervention]
+    M -->|13. Update State| I
+    
+    %% Real-time Updates
+    I -->|14. State Change| N[WebSocket Server]
+    N -->|15. Push Update| C
+    
+    %% Subgraphs for Clarity
+    subgraph Frontend
+        A
         B
         C
         D
-        E
     end
     
-    subgraph Backend
+    subgraph Backend[Backend Server]
+        E
         F
-        G
         H
+        M
+    end
+    
+    subgraph Database[Database: Supabase]
+        G
+        I
+    end
+    
+    subgraph Automation[n8n Automation]
+        J
+        K
+        L
+    end
+    
+    subgraph Realtime[Realtime Updates]
+        N
     end
 ```
 
-- **Webhook Triggers**: Handle student failure events and mentor approvals
-- **Email Notifications**: Send detailed intervention requests to mentors
-- **Task Assignment**: Process mentor responses and update student status
+### State Transitions
+
+```mermaid
+stateDiagram-v2
+    [*] --> Normal
+    Normal --> Locked: Quiz ≤ 7 OR Focus < 60 min
+    Locked --> Remedial: Mentor assigns task
+    Remedial --> Normal: Task completed
+    Locked --> Normal: Next check-in passes
+    
+    state Normal {
+        [*] --> Idle
+        Idle --> Timing: Start focus timer
+        Timing --> Idle: Timer stopped
+    }
+    
+    state Locked {
+        [*] --> PendingReview
+        PendingReview --> TaskAssigned: Mentor acts
+    }
+    
+    state Remedial {
+        [*] --> TaskActive
+        TaskActive --> TaskComplete: Student submits
+    }
+```
+
+### Key Components
+
+1. **Frontend**
+   - React components with real-time state management
+   - WebSocket connection for live updates
+   - Tab visibility detection for focus tracking
+
+2. **Backend**
+   - RESTful API endpoints
+   - State machine for student status
+   - WebSocket server for real-time updates
+
+3. **Database**
+   - Students table with state tracking
+   - Daily logs for check-ins
+   - Interventions history
+
+4. **Automation**
+   - n8n workflow for mentor notifications
+   - Email integration
+   - Webhook handling
 
 ## Project Structure
 
