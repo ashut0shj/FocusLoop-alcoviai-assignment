@@ -13,6 +13,7 @@ const serverless = require('serverless-http');
 
 // Initialize express app
 const app = express();
+const apiRouter = express.Router();
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -36,7 +37,7 @@ app.use(cors({
 }));
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+apiRouter.get('/health', (req, res) => {
   console.log('Health check called');
   res.setHeader('Content-Type', 'application/json');
   res.status(200).json({ 
@@ -44,18 +45,34 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     node_env: process.env.NODE_ENV,
     db_connected: true,
-    routes: ['/health', '/students', '/daily-checkin', '/student/:id']
+    routes: ['/api/health', '/api/students', '/api/student/:id', '/api/daily-checkin']
   });
 });
 
-// API Routes (remove /api prefix here since it's already in the route files)
-app.use('/daily-checkin', require('./dailyCheckin'));
-app.use('/assign-intervention', require('./assignIntervention'));
-app.use('/complete-task', require('./completeTask'));
-app.use('/student', require('./getStudent'));
-app.use('/students', require('./students'));
+// API Routes
+apiRouter.use('/daily-checkin', require('./dailyCheckin'));
+apiRouter.use('/assign-intervention', require('./assignIntervention'));
+apiRouter.use('/complete-task', require('./completeTask'));
+apiRouter.use('/student', require('./getStudent'));
+apiRouter.use('/students', require('./students'));
 
-// 404 handler
+// API 404 handler
+apiRouter.use((req, res) => {
+  res.status(404).json({ error: 'Not Found' });
+});
+
+app.use('/api', apiRouter);
+
+// Root route for sanity checks
+app.get('/', (req, res) => {
+  res.status(200).json({
+    service: 'FocusLoop API',
+    status: 'ok',
+    docs: '/api/health'
+  });
+});
+
+// Catch-all 404
 app.use((req, res) => {
   res.status(404).json({ error: 'Not Found' });
 });

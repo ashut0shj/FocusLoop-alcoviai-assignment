@@ -1,0 +1,188 @@
+{
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "student-failed",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "student-failed",
+      "httpMethod": "POST",
+      "path": "student-failed",
+      "isFullPath": false,
+      "responseMode": "onReceived",
+      "noResponseBody": false
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "message",
+        "operation": "post",
+        "channel": "#mentor-alerts",
+        "text": "",
+        "otherOptions": {
+          "attachments": [
+            {
+              "color": "#ff0000",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🚨 Intervention Required",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Student:*\n{{$node[\"student-failed\"].json[\"name\"] || 'Student'}}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Student ID:*\n{{$node[\"student-failed\"].json[\"student_id\"]}}"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Quiz Score:*\n{{$node[\"student-failed\"].json[\"quiz_score\"]}}/10"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Focus Minutes:*\n{{$node[\"student-failed\"].json[\"focus_minutes\"]}}"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "emoji": true,
+                        "text": "Approve Intervention"
+                      },
+                      "style": "primary",
+                      "url": "{{ $webhookUrl }}/webhook/mentor-approval?student_id={{$node[\"student-failed\"].json[\"student_id\"]}}"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "name": "Send Slack Notification",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [500, 300],
+      "credentials": {
+        "slackApi": {
+          "id": "1",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "name": "mentor-approval",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [750, 300],
+      "webhookId": "mentor-approval",
+      "httpMethod": "GET",
+      "path": "mentor-approval",
+      "isFullPath": false,
+      "responseMode": "onReceived",
+      "noResponseBody": false
+    },
+    {
+      "parameters": {
+        "url": "https://alcovia-server.vercel.app/assign-intervention",
+        "options": {}
+      },
+      "name": "Assign Intervention",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1000, 300],
+      "method": "POST",
+      "authentication": "none",
+      "headerParameters": {
+        "parameters": [
+          {
+            "name": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      },
+      "jsonParameters": true,
+      "bodyParametersJson": "{\n  \"student_id\": \"={{$node['mentor-approval'].query['student_id']}}\",\n  \"task\": \"Review study materials and complete practice exercises\"\n}"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "name": "Respond to Mentor",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1250, 300],
+      "responseMode": "onReceived",
+      "responseCode": 200,
+      "responseData": "responseCode",
+      "responseBody": "Intervention Assigned Successfully. The student has been moved to the remedial state.",
+      "responseHeaders": {
+        "parameters": [
+          {
+            "name": "Content-Type",
+            "value": "text/plain"
+          }
+        ]
+      }
+    }
+  ],
+  "connections": {
+    "student-failed": {
+      "main": [
+        [
+          {
+            "node": "Send Slack Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "mentor-approval": {
+      "main": [
+        [
+          {
+            "node": "Assign Intervention",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assign Intervention": {
+      "main": [
+        [
+          {
+            "node": "Respond to Mentor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "tags": []
+}

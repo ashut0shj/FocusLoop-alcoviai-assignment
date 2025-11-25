@@ -20,11 +20,11 @@ router.get('/:id', async (req, res) => {
     }
 
     // Get active intervention if any
-    let task = null;
+    let pendingIntervention = null;
     if (student.state === 'remedial') {
       const { data: intervention } = await supabase
         .from('interventions')
-        .select('task')
+        .select('id, task, status, created_at')
         .eq('student_id', id)
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
@@ -32,7 +32,7 @@ router.get('/:id', async (req, res) => {
         .single();
 
       if (intervention) {
-        task = intervention.task;
+        pendingIntervention = intervention;
       }
     }
 
@@ -68,7 +68,16 @@ router.get('/:id', async (req, res) => {
       id: student.id,
       name: student.name,
       state: student.state,
-      task: task,
+      task: pendingIntervention?.task || null,
+      pending_intervention_id: pendingIntervention?.id || null,
+      current_task: pendingIntervention
+        ? {
+            id: pendingIntervention.id,
+            task: pendingIntervention.task,
+            status: pendingIntervention.status,
+            assigned_at: pendingIntervention.created_at
+          }
+        : null,
       stats: {
         average_quiz_score: parseFloat(avgQuizScore.toFixed(2)),
         average_focus_minutes: parseFloat(avgFocusMinutes.toFixed(2)),

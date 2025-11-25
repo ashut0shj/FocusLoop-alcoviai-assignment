@@ -5,26 +5,53 @@ const StateMachine = require('../utils/stateMachine');
 
 router.post('/', async (req, res) => {
   try {
-    const { intervention_id } = req.body;
+    const { intervention_id: interventionIdFromBody, student_id } = req.body;
 
-    // Input validation
-    if (!intervention_id) {
+    if (!interventionIdFromBody && !student_id) {
       return res.status(400).json({ 
-        error: 'Missing required field: intervention_id is required' 
+        error: 'intervention_id or student_id is required' 
       });
     }
 
-    // Get the intervention to find the student_id
-    const { data: intervention, error: fetchError } = await supabase
-      .from('interventions')
-      .select('*')
-      .eq('id', intervention_id)
-      .single();
+    let intervention = null;
+    let interventionId = interventionIdFromBody;
 
-    if (fetchError || !intervention) {
-      return res.status(404).json({ 
-        error: 'Intervention not found' 
-      });
+    // Resolve intervention by student_id when id is not provided
+    if (!interventionId) {
+      const { data: pendingIntervention, error: pendingError } = await supabase
+        .from('interventions')
+        .select('id, student_id, task, status')
+        .eq('student_id', student_id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (pendingError || !pendingIntervention) {
+        return res.status(404).json({ 
+          error: 'Pending intervention not found for this student' 
+        });
+      }
+
+      intervention = pendingIntervention;
+      interventionId = pendingIntervention.id;
+    }
+
+    // Fetch intervention details if not already loaded
+    if (!intervention) {
+      const { data, error: fetchError } = await supabase
+        .from('interventions')
+        .select('*')
+        .eq('id', interventionId)
+        .single();
+
+      if (fetchError || !data) {
+        return res.status(404).json({ 
+          error: 'Intervention not found' 
+        });
+      }
+
+      intervention = data;
     }
 
     // Update intervention status to completed
@@ -34,7 +61,7 @@ router.post('/', async (req, res) => {
         status: 'completed',
         completed_at: new Date().toISOString()
       })
-      .eq('id', intervention_id)
+      .eq('id', interventionId)
       .select()
       .single();
 

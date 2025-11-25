@@ -42,25 +42,27 @@ router.post('/', async (req, res) => {
       return res.status(200).json({ status: 'On Track' });
     }
 
-    // If student needs intervention, trigger webhook
-    try {
-      const studentData = await supabase
-        .from('students')
-        .select('*')
-        .eq('id', student_id)
-        .single();
+    // If student needs intervention, trigger webhook (when configured)
+    if (process.env.N8N_WEBHOOK_URL) {
+      try {
+        const studentData = await supabase
+          .from('students')
+          .select('*')
+          .eq('id', student_id)
+          .single();
 
-      await axios.post(process.env.N8N_WEBHOOK_URL, {
-        student_id,
-        quiz_score,
-        focus_minutes,
-        state: student.state,
-        name: studentData.data?.name || 'Unknown',
-        timestamp: new Date().toISOString()
-      });
-    } catch (webhookError) {
-      console.error('Failed to trigger webhook:', webhookError);
-      // Continue execution even if webhook fails
+        await axios.post(process.env.N8N_WEBHOOK_URL, {
+          student_id,
+          quiz_score,
+          focus_minutes,
+          state: student.state,
+          name: studentData.data?.name || 'Unknown',
+          timestamp: new Date().toISOString()
+        });
+      } catch (webhookError) {
+        console.error('Failed to trigger webhook:', webhookError);
+        // Continue execution even if webhook fails
+      }
     }
 
     res.status(200).json({ status: 'Pending Mentor Review' });

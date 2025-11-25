@@ -1,348 +1,183 @@
-# Student Progress Tracker API
+# FocusLoop Server (Student Progress API)
 
-A robust Node.js + Express backend for tracking student progress, managing interventions, and handling daily check-ins. Built with Supabase Postgres and designed for serverless deployment on Vercel.
+Node.js + Express backend that powers the FocusLoop assignment. It tracks daily student performance, keeps a small state machine in sync with Supabase tables, and surfaces actionable interventions for mentors. The code ships as a single Vercel serverless function (`api/index.js`) but can also run as a traditional Express server during local development.
 
-## 🚀 Features
+## Key Capabilities
 
-- **Student Management**: Create and manage student records
-- **Daily Check-ins**: Track student progress with quiz scores and focus minutes
-- **Automated State Management**: Automatic state transitions (normal → locked → remedial)
-- **Intervention Workflow**: Assign and track interventions for at-risk students
-- **Comprehensive API**: Well-documented RESTful endpoints
-- **Webhook Integration**: Real-time notifications via n8n (optional)
-- **Production Ready**: Built with security and scalability in mind
+- **Student lifecycle** – create and list students, fetch rich progress summaries.
+- **Daily check-ins** – persist quiz scores and focus minutes, then evaluate state.
+- **State machine** – move students between `normal`, `locked`, and `remedial`.
+- **Intervention workflow** – assign/complete tasks and unblock locked learners.
+- **Automation hooks** – fire optional n8n webhook when an intervention is needed.
+- **Serverless ready** – zero-config deploy on Vercel using `serverless-http`.
 
-## 📋 Prerequisites
+## Runtime Architecture
 
-- Node.js 18.x or later
-- npm or yarn
-- Vercel CLI (`npm install -g vercel`)
-- Supabase account with PostgreSQL database
-- n8n account (for webhook notifications, optional)
+| Layer | Responsibilities | Relevant Files |
+| --- | --- | --- |
+| HTTP Edge | Express app + middleware, exported as Vercel handler | `api/index.js` |
+| Feature Routes | REST endpoints mounted under `/students`, `/daily-checkin`, etc. | `api/*.js` |
+| Domain Utilities | State transition helpers | `utils/stateMachine.js` |
+| Data Access | Supabase JS client with connection test | `lib/supabase.js` |
 
-## 🛠️ Setup
+> Request flow: HTTP → Express router → Supabase (Postgres) → optional n8n webhook → response.
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd <project-directory>/server
-   ```
+## Prerequisites
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+- Node.js 18+
+- npm 9+ (or pnpm/yarn)
+- Supabase project (Postgres database + service role key)
+- Optional: n8n webhook URL for mentor escalation
+- Vercel CLI (`npm i -g vercel`) if you want to emulate production locally
 
-3. **Set up environment variables**
-   - Copy `.env.example` to `.env`
-   - Update the values with your Supabase credentials and other settings
-   ```env
-   SUPABASE_URL=your_supabase_url
-   SUPABASE_KEY=your_supabase_key
-   N8N_WEBHOOK_URL=your_n8n_webhook_url # Optional
-   NODE_ENV=development
-   ```
+## Environment Variables
 
-4. **Database Setup**
-   - Create the following tables in your Supabase database:
-     - `students`
-     - `daily_logs`
-     - `interventions`
-   - Ensure all required columns and relationships are set up
+Create `/server/.env` (not committed) with:
 
-## 🚀 Running Locally
+```
+SUPABASE_URL=...
+SUPABASE_KEY=...            # service role or full access key (needed for writes)
+N8N_WEBHOOK_URL=...         # optional, skip if you do not want outbound calls
+NODE_ENV=development
+PORT=3001                   # local express port
+```
+
+`lib/supabase.js` runs a connectivity test on startup and exits early if credentials are missing or invalid, so make sure the values are correct before running the server.
+
+## Database Schema (Supabase)
+
+You can create the tables through the Supabase UI or the SQL editor using the definitions below.
+
+```sql
+create table students (
+  id uuid primary key,
+  name text not null,
+  state text not null default 'normal',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table daily_logs (
+  id uuid primary key default gen_random_uuid(),
+  student_id uuid references students(id) on delete cascade,
+  quiz_score int not null,
+  focus_minutes int not null,
+  created_at timestamptz default now()
+);
+
+create table interventions (
+  id uuid primary key,
+  student_id uuid references students(id) on delete cascade,
+  task text not null,
+  status text not null default 'pending',
+  created_at timestamptz default now(),
+  completed_at timestamptz
+);
+```
+
+Indexes you may want: `(student_id, created_at desc)` on `daily_logs` and `interventions`.
+
+## Installation & Local Development
 
 ```bash
-# Start the development server
+git clone <repo>
+cd FocusLoop-alcoviai-assignment/server
+npm install
+
+# Start the express server (PORT defaults to 3001)
 npm run dev
 
-# The API will be available at http://localhost:3000
+# In another terminal, verify the health endpoint
+curl http://localhost:3001/api/health
 ```
 
-## 🌐 API Endpoints
+What happens locally:
+- `api/index.js` bootstraps Express, logging each request + latency.
+- All routes live under `/api/...` so local and production URLs match.
+- CORS is permissive (`origin: *`) so the local Vite client can talk to it.
 
-### Health Check
-- `GET /health` - Check API status
+## Deploying to Vercel
 
-### Students
-- `GET /students` - List all students
-- `POST /students` - Create a new student
-  ```json
-  {
-    "name": "John Doe"
-  }
-  ```
-- `GET /student/:id` - Get student details
+1. Authenticate once: `vercel login`
+2. From `/server`, run `vercel` (preview) or `vercel --prod`
+3. Set the same environment variables (`SUPABASE_URL`, etc.) inside the Vercel dashboard
+4. Production base URL becomes `https://<your-app>.vercel.app/api`
 
-### Daily Check-in
-- `POST /daily-checkin` - Submit daily progress
-  ```json
-  {
-    "student_id": "uuid-here",
-    "quiz_score": 8,
-    "focus_minutes": 45
-  }
-  ```
+## API Overview
 
-### Interventions
-- `POST /assign-intervention` - Assign an intervention
-  ```json
-  {
-    "student_id": "uuid-here",
-    "task": "Complete extra math exercises",
-    "due_date": "2025-12-31"
-  }
-  ```
-- `POST /complete-task` - Mark intervention as complete
-  ```json
-  {
-    "intervention_id": "uuid-here",
-    "student_id": "uuid-here"
-  }
-  ```
+Base URL:
+- Local: `http://localhost:3001/api`
+- Vercel: `https://<app>.vercel.app/api`
 
-## 🚀 Deployment
+| Method | Path (relative to base) | Description |
+| --- | --- | --- |
+| GET | `/health` | Returns service metadata and known routes. |
+| GET | `/students` | List all students (latest first). |
+| POST | `/students` | Create a student (`name` required). |
+| GET | `/student/:id` | Fetch student profile, running averages, recent logs, pending task. |
+| POST | `/daily-checkin` | Persist quiz score + focus minutes, update state, optionally trigger webhook. |
+| POST | `/assign-intervention` | Create intervention + switch student to `remedial`. |
+| POST | `/complete-task` | Mark intervention as completed + return student to `normal`. |
 
-1. **Deploy to Vercel**
-   ```bash
-   # Login to Vercel (if not already logged in)
-   vercel login
-   
-   # Deploy
-   vercel --prod
-   ```
+### Sample Requests
 
-2. **Set environment variables** in Vercel dashboard
-
-## 📊 State Management
-
-Students can be in one of three states:
-- **Normal**: Default state
-- **Locked**: Automatically triggered by low quiz scores
-- **Remedial**: After intervention is assigned
-
-## 🔄 Webhook Integration
-
-Configure the `N8N_WEBHOOK_URL` to receive notifications for:
-- Student state changes
-- Intervention assignments
-- Task completions
-
-## 🧪 Testing
-
-Run tests with:
 ```bash
-npm test
+# Create student
+curl -X POST http://localhost:3001/api/students \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Ada Lovelace"}'
+
+# Submit daily check-in
+curl -X POST http://localhost:3001/api/daily-checkin \
+  -H "Content-Type: application/json" \
+  -d '{"student_id":"<uuid>","quiz_score":6,"focus_minutes":40}'
+
+# Assign intervention
+curl -X POST http://localhost:3001/api/assign-intervention \
+  -H "Content-Type: application/json" \
+  -d '{"student_id":"<uuid>","task":"Watch mentor feedback video"}'
+
+# Complete task
+curl -X POST http://localhost:3001/api/complete-task \
+  -H "Content-Type: application/json" \
+  -d '{"intervention_id":"<uuid>"}'
+
+# Inspect student dashboard data
+curl http://localhost:3001/api/student/<uuid>
 ```
 
-## 🤝 Contributing
+Responses are JSON and include informative error payloads when `NODE_ENV=development`.
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+## State Machine
 
-## 📄 License
+`utils/stateMachine.js` centralizes transitions:
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+- `normal → locked`: triggered automatically when `quiz_score <= 7` **or** `focus_minutes <= 60`.
+- `locked → normal`: quiz score > 7 **and** focus minutes > 60 on the next check-in.
+- `locked → remedial`: mentor assigns an intervention.
+- `remedial → normal`: intervention marked complete.
 
-## 🙏 Acknowledgments
+Every transition is persisted to the `students.state` column so the frontend stays in sync.
 
-- Built with ❤️ using Node.js, Express, and Supabase
-- Deployed on Vercel
-- Webhook integration with n8n
+## Webhook Automation (Optional)
 
-## 🏗️ Setup
+When a check-in indicates the student is **not** on track, `api/dailyCheckin.js` posts a payload to `process.env.N8N_WEBHOOK_URL`. Include fields like `student_id`, `quiz_score`, `focus_minutes`, and the resolved `state`. Failures are logged but do not block API responses.
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd FocusLoop-alcoviai-assignment/server
-   ```
+## Operational Notes
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+- **Logging**: Each request logs method, route, status, and latency in ms; useful on Vercel logs or locally.
+- **Error handling**: Central error middleware hides stack traces unless `NODE_ENV=development`.
+- **CORS**: Wide open in code; restrict `origin` before production if necessary.
+- **Timeout safety**: Supabase client re-use keeps connections under control inside serverless functions.
+- **Testing**: `npm test` is a placeholder. Add integration tests if you continue evolving the backend.
 
-3. **Environment Setup**
-   ```bash
-   cp .env.example .env
-   ```
-   Update the `.env` file with your credentials:
-   ```
-   SUPABASE_URL=your-supabase-url
-   SUPABASE_KEY=your-supabase-anon-key
-   N8N_WEBHOOK_URL=your-n8n-webhook-url
-   PORT=3000
-   NODE_ENV=development
-   ```
+## Troubleshooting
 
-4. **Database Setup**
-   - Create a new Supabase project
-   - Run the SQL schema from `database/schema.sql` in the SQL editor
-   - Or use the Supabase dashboard to create tables manually
+- *App exits immediately*: Check the Supabase connection logs printed by `lib/supabase.js`.
+- *Webhook failures*: Confirm `N8N_WEBHOOK_URL` accepts POST JSON from the backend.
+- *CORS complaints*: Change the `origin` field inside `api/index.js` to your deployed frontend.
+- *404 on Vercel*: Remember to prefix requests with `/api` in production.
 
-## 🚦 Running Locally
+---
 
-### Development Mode
-```bash
-# Install Vercel CLI if not already installed
-npm install -g vercel
-
-# Start development server
-vercel dev
-```
-
-The API will be available at `http://localhost:3000`
-
-### Production Mode
-```bash
-npm run build
-npm start
-```
-
-## 🧪 Testing the API
-
-### 1. Create a Test Student
-```bash
-curl -X POST 'http://localhost:3000/api/students' \
-  -H 'Content-Type: application/json' \
-  -d '{"name": "Test Student"}'
-```
-
-### 2. Test Daily Check-in
-#### Successful Check-in (Good scores)
-```bash
-curl -X POST 'http://localhost:3000/api/daily-checkin' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "student_id": "YOUR_STUDENT_ID",
-    "quiz_score": 8,
-    "focus_minutes": 65
-  }'
-```
-
-#### Needs Intervention (Low scores)
-```bash
-curl -X POST 'http://localhost:3000/api/daily-checkin' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "student_id": "YOUR_STUDENT_ID",
-    "quiz_score": 5,
-    "focus_minutes": 30
-  }'
-```
-
-### 3. Assign Intervention (via n8n webhook or manually)
-```bash
-curl -X POST 'http://localhost:3000/api/assign-intervention' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "student_id": "YOUR_STUDENT_ID",
-    "task": "Complete additional exercises on algebra"
-  }'
-```
-
-### 4. Complete Task
-```bash
-curl -X POST 'http://localhost:3000/api/complete-task' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "intervention_id": "YOUR_INTERVENTION_ID"
-  }'
-```
-
-### 5. Get Student Status
-```bash
-curl 'http://localhost:3000/api/student/YOUR_STUDENT_ID'
-```
-
-## 📚 API Reference
-
-### POST /api/daily-checkin
-Record a student's daily check-in.
-
-**Request Body:**
-```json
-{
-  "student_id": "uuid",
-  "quiz_score": 0-10,
-  "focus_minutes": number
-}
-```
-
-### POST /api/assign-intervention
-Assign an intervention to a student.
-
-**Request Body:**
-```json
-{
-  "student_id": "uuid",
-  "task": "string"
-}
-```
-
-### POST /api/complete-task
-Mark an intervention as completed.
-
-**Request Body:**
-```json
-{
-  "intervention_id": "uuid"
-}
-```
-
-### GET /api/student/:id
-Get student details and status.
-
-## 🔄 State Machine
-
-The student state transitions are managed as follows:
-
-```mermaid
-stateDiagram-v2
-    [*] --> normal
-    normal --> locked: quiz_score ≤ 7 OR focus_minutes ≤ 60
-    locked --> normal: quiz_score > 7 AND focus_minutes > 60
-    locked --> remedial: When intervention is assigned
-    remedial --> normal: When intervention is completed
-```
-
-## 🚀 Deployment
-
-1. **Vercel Deployment**
-   ```bash
-   # Login to Vercel
-   vercel login
-   
-   # Deploy
-   vercel --prod
-   ```
-
-2. **Environment Variables**
-   Make sure to set all required environment variables in your Vercel project settings.
-
-## 📦 Dependencies
-
-- Express.js - Web framework
-- @supabase/supabase-js - Database client
-- serverless-http - For Vercel serverless functions
-- cors - For handling CORS
-- dotenv - For environment variables
-
-## 🔍 Debugging
-
-Set `NODE_ENV=development` to see detailed error messages in responses.
-
-## 📝 Notes
-
-- The API is stateless and designed for serverless deployment
-- All timestamps are in UTC
-- Database indexes are optimized for common queries
-- The system is designed to be extended with additional features like authentication
-
-## 📄 License
-
-This project is licensed under the MIT License.
+This backend pairs with the `client/` Vite app in the root of the repository. Point the client’s API base URL to the correct environment and you are ready to demo the full FocusLoop experience.
