@@ -20,13 +20,12 @@ A full-stack system that implements a closed-loop intervention workflow for stud
 - React 18 with Vite
 - React Router for navigation
 - Tailwind CSS for styling
-- WebSocket for real-time updates
 
+  
 ### Backend
 - Node.js with Express
 - Supabase (PostgreSQL) for data persistence
-- JWT for authentication
-- WebSocket server for real-time communication
+- N8N Automation
 
 ## Application Screenshots
 
