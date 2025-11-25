@@ -50,24 +50,23 @@ A full-stack system that implements a closed-loop intervention workflow for stud
 ## System Workflow
 
 ```mermaid
-sequenceDiagram
-    participant Student
-    participant Frontend
-    participant Backend
-    participant Database
-    participant n8n
-    participant Mentor
+flowchart TD
+    A[Student Performs Poorly] --> B[Frontend Detects]
+    B --> C[Send to Backend]
+    C --> D[Log in Database]
+    D --> E[Trigger n8n Workflow]
+    E --> F[Send Email to Mentor]
+    F --> G{Mentor Action}
+    G -->|Approve| H[Assign Task]
+    G -->|Reject| I[No Action]
+    H --> J[Update Backend]
+    J --> K[Update Database]
+    K --> L[Push Update to Frontend]
+    L --> M[Show Task to Student]
     
-    Student->>Frontend: Performs poorly
-    Frontend->>Backend: Send performance data
-    Backend->>Database: Log performance
-    Backend->>n8n: Trigger workflow
-    n8n->>Mentor: Send email notification
-    Mentor-->>n8n: Approve & assign task
-    n8n->>Backend: Update task status
-    Backend->>Database: Update student state
-    Backend->>Frontend: Real-time update
-    Frontend->>Student: Show assigned task
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style M fill:#9f9,stroke:#333,stroke-width:2px
+    style G fill:#ff9,stroke:#333,stroke-width:2px
 ```
 
 ### Key Components
