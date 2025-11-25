@@ -1,0 +1,12 @@
+{
+  "projects": [
+    {
+      "name": "client",
+      "rootDirectory": "client"
+    },
+    {
+      "name": "server",
+      "rootDirectory": "server"
+    }
+  ]
+}
