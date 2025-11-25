@@ -29,9 +29,36 @@ A full-stack system that implements a closed-loop intervention workflow for stud
 - WebSocket server for real-time communication
 
 ### Automation
-- n8n for workflow automation
-- Email notifications
-- Task assignment system
+
+### n8n Workflow
+
+```mermaid
+flowchart TD
+    A[Student Fails Check-in] -->|Triggers| B[Webhook: student-fail]
+    B --> C[Send Email to Mentor]
+    C --> D[Wait for Mentor Action]
+    D -->|Mentor Clicks Link| E[Webhook: mentor-approval]
+    E --> F[Assign Intervention]
+    F --> G[Update Student Status]
+    G --> H[Notify Student]
+    
+    subgraph n8n Workflow
+        B
+        C
+        D
+        E
+    end
+    
+    subgraph Backend
+        F
+        G
+        H
+    end
+```
+
+- **Webhook Triggers**: Handle student failure events and mentor approvals
+- **Email Notifications**: Send detailed intervention requests to mentors
+- **Task Assignment**: Process mentor responses and update student status
 
 ## Project Structure
 
