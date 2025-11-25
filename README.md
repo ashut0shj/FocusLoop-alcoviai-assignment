@@ -64,9 +64,9 @@ flowchart TD
     K --> L[Push Update to Frontend]
     L --> M[Show Task to Student]
     
-    style A fill:#f9f,stroke:#333,stroke-width:2px
-    style M fill:#9f9,stroke:#333,stroke-width:2px
-    style G fill:#ff9,stroke:#333,stroke-width:2px
+    style A fill:#4a90e2,stroke:#1a365d,stroke-width:2px,color:#ffffff
+    style M fill:#2ecc71,stroke:#1a5f2e,stroke-width:2px,color:#ffffff
+    style G fill:#f39c12,stroke:#8e4d0e,stroke-width:2px,color:#000000
 ```
 
 ### Key Components
